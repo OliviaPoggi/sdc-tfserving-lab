@@ -1,42 +1,17 @@
 {
-  "name": "tf-serving-lab (Solution Deployment & Communication)",
+  "name": "tfserving-lab",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "dockerDashComposeVersion": "v2"
-    },
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11"
-    }
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "forwardPorts": [8501, 8000, 8601],
+  "forwardPorts": [8501, 8601],
   "portsAttributes": {
-    "8501": {
-      "label": "Streamlit frontend",
-      "onAutoForward": "openPreview"
-    },
-    "8000": {
-      "label": "FastAPI backend",
-      "onAutoForward": "silent"
-    },
-    "8601": {
-      "label": "TensorFlow Serving REST",
-      "onAutoForward": "silent"
-    }
+    "8501": { "label": "Streamlit frontend" },
+    "8601": { "label": "TensorFlow Serving" }
   },
-  "postCreateCommand": "chmod +x verify.sh",
   "hostRequirements": {
     "cpus": 4,
     "memory": "8gb",
     "storage": "32gb"
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-azuretools.vscode-docker"
-      ]
-    }
   }
 }

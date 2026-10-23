@@ -1,90 +1,43 @@
 services:
-  # Runs once, exports MobileNetV2 into the shared volume, then exits.
-  # The other services wait for it to finish successfully.
+  # Runs once: downloads MobileNetV2, writes it into the shared volume, exits.
   model-init:
     build: ./model-init
-    container_name: model-init
-    environment:
-      MODEL_DIR: /models
-      MODEL_NAME: mobilenet
     volumes:
       - model-store:/models
     networks:
       - app-network
 
-  # Serves the exported SavedModel over REST (8501) and gRPC (8500).
+  # Serves the model over a REST API.
   tf-serving:
     image: tensorflow/serving:2.17.0
-    container_name: tf-serving
-    environment:
-      MODEL_NAME: mobilenet
+    command:
+      - "--model_name=mobilenet"
+      - "--model_base_path=/models/mobilenet"
+      - "--rest_api_port=8501"
     volumes:
       - model-store:/models
-    command:
-      # Config-file approach shown in class (models.config gist): supports
-      # several models and explicit version policies instead of a single
-      # --model_name / --model_base_path pair.
-      - "--model_config_file=/models/models.config"
-      - "--rest_api_port=8501"
     ports:
-      # 8601 on the host because Streamlit already uses 8501 there.
+      # 8601 on this machine because the frontend already uses 8501.
       - "8601:8501"
-      - "8500:8500"
     depends_on:
+      # Wait until the model has actually been exported.
       model-init:
         condition: service_completed_successfully
     networks:
       - app-network
-    healthcheck:
-      # Prefers curl (which also confirms the model is loaded) but falls back
-      # to a plain TCP check through bash, so the healthcheck still works if
-      # the serving image ships without curl.
-      test:
-        - "CMD"
-        - "bash"
-        - "-c"
-        - "curl -sf http://localhost:8501/v1/models/mobilenet >/dev/null 2>&1 || exec 3<>/dev/tcp/localhost/8501"
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
 
-  # Accepts the uploaded image, preprocesses it, calls TensorFlow Serving.
-  backend:
-    build: ./backend
-    container_name: backend-container
-    environment:
-      TF_SERVING_URL: http://tf-serving:8501
-      MODEL_NAME: mobilenet
-      LABELS_PATH: /models/labels.json
-    volumes:
-      # Read-only: the backend only needs the labels file from this volume.
-      - model-store:/models:ro
-    ports:
-      - "8000:8000"
-    depends_on:
-      tf-serving:
-        condition: service_healthy
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-
-  # Streamlit UI with the file uploader.
+  # Streamlit UI: uploads the image and asks tf-serving for a prediction.
   frontend:
     build: ./frontend
-    container_name: frontend-container
     environment:
-      APP_BACKEND_URL: http://backend:8000
+      TF_SERVING_URL: http://tf-serving:8501
+    volumes:
+      # Read-only: the frontend only needs labels.json from here.
+      - model-store:/models:ro
     ports:
       - "8501:8501"
     depends_on:
-      backend:
-        condition: service_healthy
+      - tf-serving
     networks:
       - app-network
 
