@@ -78,6 +78,33 @@ docker compose down -v       # also delete the downloaded model
 The request and response format is the one used in the course notebook
 ("code for next batches" on Moodle).
 
+## Model versioning
+
+TensorFlow Serving finds models by looking for numbered folders inside the
+model directory. That is why `model-init` exports to `/models/mobilenet/1`:
+the `1` is a version number, not part of the model name. If a folder `2` were
+added later, TensorFlow Serving would detect it and start serving the newer
+version without restarting.
+
+This project serves a single version, which is all the application needs. To
+serve several versions at the same time, TensorFlow Serving is started with a
+config file instead of the `--model_name` and `--model_base_path` flags:
+
+    model_config_list {
+      config {
+        name: 'mobilenet'
+        base_path: '/models/mobilenet/'
+        model_platform: 'tensorflow'
+        model_version_policy { specific { versions: 1  versions: 2 } }
+        version_labels { key: 'stable'  value: 1 }
+        version_labels { key: 'canary'  value: 2 }
+      }
+    }
+
+This is what makes a model server more than just a model wrapped in an API: it
+can hold several versions at once, which is what A/B testing and gradual
+rollouts are built on.
+
 ## Testing
 
 Tested manually through the browser. Uploading a photograph of a white wolf
